@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Install CGI
-cpanm CGI || exit 1
+cpanm CGI || (echo "CGI install failed, outputting build.log..."; tail /root/.cpanm/work/*/build.log; exit 1)
 
 # Install DBD::Pg and output the log if it fails
 cpanm DBD::Pg || (echo "DBD::Pg install failed, outputting build.log..."; tail /root/.cpanm/work/*/build.log; exit 1)

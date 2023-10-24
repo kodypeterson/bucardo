@@ -8,7 +8,10 @@ ENV POSTGRES_DB postgres
 
 # Update and Install needed software
 RUN apt-get update \
-    && apt-get install -y perl make postgresql-plperl-15 libdbix-safe-perl libboolean-perl libjson-perl git cpanminus libpq-dev build-essential jq curl net-tools netcat iputils-ping vim
+    && apt-get install -y perl make postgresql-plperl-15 libdbix-safe-perl libboolean-perl libjson-perl git cpanminus libpq-dev build-essential jq curl net-tools netcat-traditional iputils-ping vim locales python3
+
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen
 
 # Copy the installation script
 COPY install-modules.sh /tmp/install-modules.sh
@@ -59,6 +62,10 @@ LABEL maintainer="rafalszymonduda@outlook.com"
 CMD apt-get remove build-essential libpq-dev && \
     apt-get autoremove -yqq -purge && \
     apt-get clean
+
+ENV LANG="en_US.UTF-8" 
+ENV LC_ALL="en_US.UTF-8" 
+ENV LC_CTYPE="en_US.UTF-8"
 
 # Override PostgreSQL entrypoint
 ENTRYPOINT ["/bin/bash"]
