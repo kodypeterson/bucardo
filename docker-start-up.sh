@@ -1,16 +1,23 @@
 #!/bin/bash
+set -e
 
-echo "[docker-start-up.sh] Starting"
 
-cat /etc/locale.conf
+# Function to install and configure Bucardo
+install_bucardo() {
+    # Check if the bucardo user already exists, if not create it
+    if [[ "$(psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='bucardo'")" != "1" ]]; then
+        psql -U postgres -c "CREATE ROLE bucardo WITH SUPERUSER LOGIN PASSWORD 'bucardo';"
+    fi
 
-export PGPASSWORD=$BUCARDO_DB_PASSWORD
+    # Check if the bucardo database already exists, if not create it
+    if [[ "$(psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='bucardo'")" != "1" ]]; then
+        psql -U postgres -c "CREATE DATABASE bucardo OWNER bucardo;"
+        psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE bucardo TO bucardo;"
+    fi
 
-bucardo install --batch --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+    # Initialize Bucardo
+    bucardo install --batch
+}
 
-# Call check bucardo.json in infinity loop in background
-while true; do sleep 10; /bin/bash apply-bucardo-config.sh;   done &
-
-# Call entrypoint and cmd of the postgres docker image
-# It is blocking command, so it makes container to run permanently
-docker-entrypoint.sh python3 -m http.server 8080
+# Call the functions
+install_bucardo

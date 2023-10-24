@@ -2,13 +2,6 @@
 
 is_running=false
 
-bucardo_db_host=$BUCARDO_DB_HOST
-bucardo_db_user=$BUCARDO_DB_USER
-
-export PGPASSWORD=$BUCARDO_DB_PASSWORD
-
-ls -l $bucardo_db_host
-
 # Function to validate database connections
 # This function reads each database configuration from the 'bucardo.json' file,
 # attempts to connect to the database 10 times, and if all attempts fail, it will exit the script with error.
@@ -67,18 +60,17 @@ init_db_against_bucardo_json() {
 
             # Check if $host is in the list of available hostnames
             if [[ " ${temp[*]} " == *" $host "* ]]; then
-                if [[ "$(psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME - -tAc "SELECT 1 FROM pg_roles WHERE rolname='${user}'")" != "1" ]]; then
-
-                    echo "psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "CREATE USER ${user} WITH PASSWORD '${pass}';""
-                    psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "CREATE USER ${user} WITH PASSWORD '${pass}';"
-                    psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "SELECT 1 FROM pg_roles WHERE rolname='${user}'"
+                if [[ "$(psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='${user}'")" != "1" ]]; then
+                    echo psql -U postgres -c "CREATE USER ${user} WITH PASSWORD '${pass}';"
+                    psql -U postgres -c "CREATE USER ${user} WITH PASSWORD '${pass}';"
+                    psql -h localhost -U postgres -c "SELECT 1 FROM pg_roles WHERE rolname='${user}'"
                 fi
 
-                if [[ "$(psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -tAc "SELECT 1 FROM pg_database WHERE datname='${dbname}'")" != "1" ]]; then
-                    echo psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "CREATE DATABASE ${dbname} OWNER ${user};"
-                    psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "CREATE DATABASE ${dbname} OWNER ${user};"
-                    psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "GRANT ALL PRIVILEGES ON DATABASE ${dbname} TO ${user};"
-                    psql -h $bucardo_db_host -U $bucardo_db_user --dbname $BUCARDO_DB_NAME -c "SELECT 1 FROM pg_database WHERE datname='${dbname}'"
+                if [[ "$(psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${dbname}'")" != "1" ]]; then
+                    echo psql -U postgres -c "CREATE DATABASE ${dbname} OWNER ${user};"
+                    psql -U postgres -c "CREATE DATABASE ${dbname} OWNER ${user};"
+                    psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${dbname} TO ${user};"
+                    psql -h localhost -U postgres -c "SELECT 1 FROM pg_database WHERE datname='${dbname}'"
                 fi
             fi
         done
@@ -89,24 +81,20 @@ init_db_against_bucardo_json() {
 removeAllBucardoObjects() {
   echo "[apply-bucardo-config.sh] Remove all bucardo objects"
 
-  echo "[apply-bucardo-config.sh] bucardo list sync $sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME"
   # Stop and remove all syncs
-  for sync in $(bucardo list sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME | awk '{print $1}'); do
-      echo "[apply-bucardo-config.sh] bucardo stop sync $sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME"
-      bucardo stop sync $sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
-      bucardo remove sync $sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+  for sync in $(bucardo list sync | awk '{print $1}'); do
+      bucardo stop sync $sync
+      bucardo remove sync $sync
   done
 
-  echo "[apply-bucardo-config.sh] bucardo list relgroup $sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME"
   # Remove all relation groups
-  for relgroup in $(bucardo list relgroup --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME | awk '{print $1}'); do
-      bucardo remove relgroup $relgroup --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+  for relgroup in $(bucardo list relgroup | awk '{print $1}'); do
+      bucardo remove relgroup $relgroup
   done
 
-echo "[apply-bucardo-config.sh] bucardo list db $sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME"
   # Remove all databases
-  for db in $(bucardo list db --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME | awk '{print $1}'); do
-      bucardo remove db $db --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+  for db in $(bucardo list db | awk '{print $1}'); do
+      bucardo remove db $db
   done
 }
 
@@ -142,7 +130,7 @@ json_reading_section() {
         #   if [ $attempt -lt 10 ]; then
               args=( "dbname=${dbname}" "host=${host}" "user=${user}" "pass=${pass}" "port=${port}" )
               echo "[apply-bucardo-config.sh] bucardo add db \"${id}\" \"${args[@]}\""
-              bucardo add db "${id}" "${args[@]}" --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+              bucardo add db "${id}" "${args[@]}"
         #   else
             #   echo "[apply-bucardo-config.sh] Warning: Cannot connect to ${host}:${port} after 10 attempts. Skipping database ${id}."
         #   fi
@@ -163,22 +151,22 @@ json_reading_section() {
               # Check if database was added before trying to add tables or sync
               if bucardo list db "${server}" | grep -q "Status: active"; then
                   echo "[apply-bucardo-config.sh] bucardo add table public.% relgroup=relGroup$i$server db=$server"
-                  bucardo add table public.% relgroup=relGroup$i$server db=$server --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo add table public.% relgroup=relGroup$i$server db=$server
 
                   echo "[apply-bucardo-config.sh] bucardo add sequence public.% relgroup=relGroup$i$server db=$server"
-                  bucardo add sequence public.% relgroup=relGroup$i$server db=$server --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo add sequence public.% relgroup=relGroup$i$server db=$server
 
                   echo "[apply-bucardo-config.sh] remove table public.spatial_ref_sys --herd=relGroup$i$server db=$server"
-                  bucardo remove table public.spatial_ref_sys --herd=relGroup$i$server db=$server --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo remove table public.spatial_ref_sys --herd=relGroup$i$server db=$server
 
                   echo "[apply-bucardo-config.sh] remove table public.geography_columns --herd=relGroup$i$server db=$server"
-                  bucardo remove table public.geography_columns --herd=relGroup$i$server db=$server --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo remove table public.geography_columns --herd=relGroup$i$server db=$server
 
                   echo "[apply-bucardo-config.sh] remove table public.geometry_columns --herd=relGroup$i$server db=$server"
-                  bucardo remove table public.geometry_columns --herd=relGroup$i$server db=$server --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo remove table public.geometry_columns --herd=relGroup$i$server db=$server
 
                   echo "[apply-bucardo-config.sh] remove table public.geometry_columns --herd=relGroup$i$server db=$server"
-                  bucardo remove table public.request_logs --herd=relGroup$i$server db=$server --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo remove table public.request_logs --herd=relGroup$i$server db=$server
               else
                   echo "[apply-bucardo-config.sh] Warning: Database ${server} was not added. Skipping adding tables and sync."
               fi
@@ -189,7 +177,7 @@ json_reading_section() {
               # Check if database was added before trying to add sync
               if bucardo list db "${source}" | grep -q "Status: active"; then
                   echo "[apply-bucardo-config.sh] bucardo add sync sync$i$source relgroup=relGroup$i$source dbs=\"$source,$targets\""
-                  bucardo add sync sync$i$source relgroup=relGroup$i$source dbs="$source,$targets" onetimecopy=2 --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+                  bucardo add sync sync$i$source relgroup=relGroup$i$source dbs="$source,$targets" onetimecopy=2
               else
                   echo "[apply-bucardo-config.sh] Warning: Database ${source} was not added. Skipping adding sync."
               fi
@@ -201,15 +189,15 @@ json_reading_section() {
 
       # List all syncs
       echo "[apply-bucardo-config.sh] Bucardo syncs:"
-      bucardo list sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+      bucardo list sync
 
       # Restart all syncs
       echo "[apply-bucardo-config.sh] Restarting all Bucardo syncs:"
-      bucardo restart sync --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+      bucardo restart sync
 
       # Show Bucardo status
       echo "[apply-bucardo-config.sh] Bucardo status:"
-      bucardo status --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+      bucardo status
 
       is_running=true
 
