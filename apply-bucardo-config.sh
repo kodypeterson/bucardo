@@ -207,7 +207,7 @@ json_reading_section() {
 function listen_bucardo_json() {
     if $is_running ; then
       echo "[apply-bucardo-config.sh] Bucardo status:"
-      bucardo status sync1source --dbhost $BUCARDO_DB_HOST --dbuser $BUCARDO_DB_USER --dbpass $BUCARDO_DB_PASSWORD --dbname $BUCARDO_DB_NAME
+      bucardo status sync1source
     else
 
     # File to store the last modification time
